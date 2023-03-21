@@ -1,0 +1,195 @@
+// This is your Prisma schema file
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// https://github.com/chrishoermann/zod-prisma-types
+/// @zod.import(["import { defaults } from '../game/defaults';"])
+generator zod {
+  provider         = "zod-prisma-types"
+  output           = "../src/lib/zod"
+  createInputTypes = false
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  expires_in        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  state         State[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model State {
+  id                       String                @id @default(cuid())
+  startTime                DateTime              @default(now())
+  user                     User                  @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId                   String
+  turn                     Int                   @default(1) /// @zod.number.nonnegative()
+  action                   ActionEnum            @default(rollTheDice)
+  dice                     DieEnum[] /// @zod.enum.array(.max(defaults.dice))
+  playedDice               DieEnum[] /// @zod.enum.array(.max(defaults.dice))
+  wood                     Int                   @default(10) /// @zod.custom.use(z.number().nonnegative().max(defaults.maxResource))
+  food                     Int                   @default(6) /// @zod.custom.use(z.number().nonnegative().max(defaults.maxResource))
+  gold                     Int                   @default(4) /// @zod.custom.use(z.number().nonnegative().max(defaults.maxResource))
+  outlawsAlliance          Int                   @default(0) /// @zod.custom.use(z.number().nonnegative().max(defaults.maxEnemyTroop))
+  blackrockClan            Int                   @default(0) /// @zod.custom.use(z.number().nonnegative().max(defaults.maxEnemyTroop))
+  nomadicRiders            Int                   @default(0) /// @zod.custom.use(z.number().nonnegative().max(defaults.maxEnemyTroop))
+  citySlots                BuildingEnum[]        @default([none, none, none, none, none, none, none, none, none, none, none, none, none, none, none, none, none, none, none, none, none, none, none, none, none]) /// @zod.enum.array(.length(defaults.cityDistrictSlots))
+  fight                    FightEnum             @default(stepZero)
+  invadingHightown         Boolean               @default(false)
+  assignedBarbariansAtGate Int                   @default(0)
+  built                    BuildingEnum[] /// @zod.enum.array(.max(defaults.buildUpTo))
+  traded                   Int                   @default(0)
+  mercenaryTroopsHired     Int                   @default(0)
+  plagueErased             CityDistrictEnum[]
+  unlockedAdvancements     AdvancementEnum[]
+  paidToThieves            CityDistrictEnum[]
+  dieReRolledOrChanged     DieReRolledOrChanged?
+  extraGoldForCoinage      Boolean               @default(false)
+
+  @@unique([userId])
+}
+
+// Just have this whilst this gets resolved https://github.com/prisma/prisma/issues/13382
+model Temp {
+  id       String        @id @default(cuid())
+  resource ResourceEnum?
+}
+
+enum DieReRolledOrChanged {
+  reRolled
+  changed
+}
+
+enum FightEnum {
+  stepZero
+  stepOne
+  stepTwo
+  stepThree
+}
+
+enum DieEnum {
+  one
+  two
+  three
+  four
+  five
+  six
+}
+
+enum CityDistrictEnum {
+  hightown
+  mountainside
+  theGrove
+  countryDistrict
+}
+
+enum ResourceEnum {
+  wood
+  food
+  gold
+}
+
+enum EnemyEnum {
+  outlawsAlliance
+  blackrockClan
+  nomadicRiders
+}
+
+enum BuildingEnum {
+  none
+  tree
+  farm
+  lumberjack
+  quarry
+  castle
+  market
+  abbey
+  tavern
+}
+
+enum ActionEnum {
+  rollTheDice
+  reRollOrChange
+  reRollOrChangeForAstronomy
+  playDie
+  feedTheHungry
+  barbariansAtGate
+  claimVictory
+  harvest
+  nomadsAttack
+  collect
+  outlawsAttack
+  mineGold
+  blackrockClanAttacks
+  trade
+  mercenaryTroop
+  plague
+  build
+  attack
+  thieves
+  worship
+  research
+  riot
+  doneWithDie
+}
+
+enum AdvancementEnum {
+  cropRotation
+  improvedWoodaxe
+  smelting
+  cavalry
+  archers
+  steelWeaponry
+  medicine
+  fyrdMilitia
+  guildOfThieves
+  astronomy
+  masonry
+  coinage
+}
